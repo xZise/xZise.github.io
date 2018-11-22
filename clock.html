@@ -74,19 +74,17 @@ button {
 
 	function write_output() {
 		if (show_number >= 0) {
+			let part = 2 - Math.floor(show_number / 2);
+			let number = date_part(date, part);
+			let color = column_color[part];
 			if (show_number % 2) {
-				let digit = Math.floor(show_number / 2);
-				let part = 2 - Math.floor(digit / 2);
-				let number = date_part(date, part);
-				let color = column_color[part];
-				if (digit % 2) {
-					number = Math.floor(number / 10);
-				} else {
-					number %= 10;
-				}
-				write_number(number, color);
-				columns[1][5].bgColor = digit % 2 ? "yellow" : "unset";
+				number = Math.floor(number / 10);
+			} else {
+				number %= 10;
 			}
+			write_number(number, color);
+			columns[1][5].bgColor = show_number % 2 ? "yellow" : "unset";
+
 			show_number -= 1;
 		} else {
 			for (let i = 0; i < 3; i++) {
@@ -112,7 +110,7 @@ button {
 	function btn_click(e) {
 		switch (e) {
 		case "menu":
-			show_number = 11;
+			show_number = 5;
 			break;
 		case "neg":
 			show_date = !show_date;
