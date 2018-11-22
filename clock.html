@@ -39,7 +39,8 @@ button {
 	var column_color = ["blue", "green", "red"];
 	
 	function write_column(col_num, value, color) {
-		for (let row = 0; row < 6; row++) {
+		let end = (col_num == (show_date ? 2 : 0)) ? 5 : 6;
+		for (let row = 0; row < end; row++) {
 			columns[col_num][row].bgColor = value & 0x1 ? color : "unset";
 			value >>= 1;
 		}
