@@ -37,6 +37,7 @@ button {
 	var show_number = -1;
 	var columns = [[], [], []];
 	var column_color = ["blue", "green", "red"];
+	var show_blink = false;
 	
 	function write_column(col_num, value, color) {
 		let end = (col_num == (show_date ? 2 : 0)) ? 5 : 6;
@@ -65,6 +66,13 @@ button {
 
 	function tick() {
 		date = new Date();
+		show_blink = true;
+		write_output();
+		columns[show_date ? 2 : 0][5].bgColor = "yellow";
+		setTimeout(function() { show_blink = false; columns[show_date ? 2 : 0][5].bgColor = "unset"; }, 250);
+	}
+
+	function write_output() {
 		if (show_number >= 0) {
 			if (show_number % 2) {
 				let digit = Math.floor(show_number / 2);
@@ -85,9 +93,9 @@ button {
 				write_column(i, date_part(date, i), column_color[i]);
 			}
 		}
-
-		columns[show_date ? 2 : 0][5].bgColor = "yellow";
-		setTimeout(function() { columns[show_date ? 2 : 0][5].bgColor = "unset"; }, 250);
+		if (show_blink) {
+			columns[show_date ? 2 : 0][5].bgColor = "yellow";
+		}
 	}
 
 	function init_table() {
@@ -111,6 +119,7 @@ button {
 			if (show_number >= 0) {
 				show_number = -1;
 			}
+			write_output();
 			break;
 		case "pos":
 			break;
