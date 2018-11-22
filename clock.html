@@ -110,7 +110,12 @@ button {
 	function btn_click(e) {
 		switch (e) {
 		case "menu":
-			show_number = 5;
+			if (show_number < 0) {
+				show_number = 5;
+			} else {
+				show_number = -1;
+				write_output();
+			}
 			break;
 		case "neg":
 			show_date = !show_date;
