@@ -64,12 +64,12 @@ button {
 	}
 
 	function tick() {
-		let d = new Date();
+		date = new Date();
 		if (show_number >= 0) {
 			if (show_number % 2) {
 				let digit = Math.floor(show_number / 2);
 				let part = 2 - Math.floor(digit / 2);
-				let number = date_part(d, part);
+				let number = date_part(date, part);
 				let color = column_color[part];
 				if (digit % 2) {
 					number = Math.floor(number / 10);
@@ -82,7 +82,7 @@ button {
 			show_number -= 1;
 		} else {
 			for (let i = 0; i < 3; i++) {
-				write_column(i, date_part(d, i), column_color[i]);
+				write_column(i, date_part(date, i), column_color[i]);
 			}
 		}
 
