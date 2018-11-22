@@ -30,7 +30,20 @@ button {
 }
 </style>
 <script>
+	const YEAR = 0;
+	const MONTH = 1;
+	const DAY = 2;
+	const HOUR = 3;
+	const MINUTE = 4;
+	const SECOND = 5;
+	const FIELD_COUNT = SECOND + 1;
 	const COLUMN_COLORS = ["blue", "green", "red"];
+	const COLUMN_EDIT_COLORS = ["darkblue", "darkgreen", "darkred"];
+	const MAX_EDIT_VALUE = [63, 12, 31, 23, 59, 59];
+	const MIN_EDIT_VALUE = [0, 1, 1, 0, 0, 0];
+	// The bits are calculated from the "MAX_EDIT_VALUE", but because it's an array
+	// it can actually be a const. This is more for the developer to see it doesn't change
+	const MAX_EDIT_BITS = [];
 
 	var numbers = [	[0b01110, 0b10001, 0b01110],
 					[0b01000, 0b11111, 0b00000],
@@ -45,20 +58,32 @@ button {
 
 	var date;
 	var tick_id;
+	var edit_tick_id;
 	var show_date = false;
 	var show_number = -1;
 	var columns = [[], [], []];
 	var show_blink = false;
 
+	var edit_mode = -1;
+	var edit_bit = 0;
+	var edit_tick_cnt = true;
+	var edit_time = [];
+	var edit_select_column = true;
+
 	// The setTimeout id when a button was clicked
 	var btn_click_timer;
 	// This is set to false on "start" of the click, and set to true as soon as the click was handled.
 	var btn_handled = false;
-	
-	function write_column(col_num, value, color) {
-		let end = (col_num == (show_date ? 2 : 0)) ? 5 : 6;
+
+	function write_column(col_num, value, color, end, off_color) {
+		if (end === undefined) {
+			end = (col_num == (show_date ? 2 : 0)) ? 5 : 6;
+		}
+		if (off_color === undefined) {
+			off_color = "unset";
+		}
 		for (let row = 0; row < end; row++) {
-			columns[col_num][row].bgColor = value & 0x1 ? color : "unset";
+			columns[col_num][row].bgColor = value & 0x1 ? color : off_color;
 			value >>= 1;
 		}
 	}
@@ -68,24 +93,36 @@ button {
 			write_column(col, numbers[number][col], color);
 		}
 	}
-	
-	function date_part(date, part) {
+
+	function date_absolute_part(date, part) {
 		switch (part) {
-		case 0:
-			return show_date ? ((date.getFullYear() - 2000) % 64) : date.getHours();
-		case 1:
-			return show_date ? date.getMonth() + 1 : date.getMinutes();
-		case 2:
-			return show_date ? date.getDate() : date.getSeconds();
+		case YEAR:
+			return (date.getFullYear() - 2000) % 64;
+		case MONTH:
+			return date.getMonth() + 1;
+		case DAY:
+			return date.getDate();
+		case HOUR:
+			return date.getHours();
+		case MINUTE:
+			return date.getMinutes();
+		case SECOND:
+			return date.getSeconds();
 		}
+	}
+
+	function date_part(date, part) {
+		return date_absolute_part(date, part + (show_date ? 0 : 3));
 	}
 
 	function tick() {
 		date.setSeconds(date.getSeconds() + 1);
-		show_blink = true;
-		write_output();
-		columns[show_date ? 2 : 0][5].bgColor = "yellow";
-		setTimeout(function() { show_blink = false; columns[show_date ? 2 : 0][5].bgColor = "unset"; }, 250);
+		if (edit_mode < 0) {
+			show_blink = true;
+			write_output();
+			columns[show_date ? 2 : 0][5].bgColor = "yellow";
+			setTimeout(function() { show_blink = false; columns[show_date ? 2 : 0][5].bgColor = "unset"; }, 250);
+		}
 	}
 
 	function write_output() {
@@ -123,14 +160,128 @@ button {
 			columns[i % 3].unshift(cells[i + Math.floor(i / 3) + 1]);
 		}
 
+		for (let i = 0; i < FIELD_COUNT; i++) {
+			let val = MAX_EDIT_VALUE[i];
+			MAX_EDIT_BITS[i] = 0;
+			while (val > 0) {
+				MAX_EDIT_BITS[i]++;
+				val >>= 1;
+			}
+		}
+
 		date = new Date();
+		start_tick();
+	}
+
+	function start_tick() {
 		tick();
 		tick_id = setInterval(tick, 1000);
 	}
 
-	function btn_click(e, is_long_press) {
+	function edit_tick() {
+		write_edit_output();
+		edit_tick_cnt = !edit_tick_cnt;
+	}
+
+	function write_edit_output() {
+		for (let i = 0; i < 3; i++) {
+			let column = Math.floor(edit_mode / 3) * 3 + i;
+			let value = edit_time[column];
+			let bg_color = COLUMN_EDIT_COLORS[i];
+			if (edit_mode % 3 == i) {
+				if (edit_tick_cnt) {
+					value = 0;
+				}
+				value |= (1 << edit_bit);
+			}
+			if (edit_tick_cnt && !is_valid_value(column)) {
+				bg_color = undefined;
+			}
+			write_column(i, value, COLUMN_COLORS[i], 6, bg_color);
+		}
+	}
+
+	function start_edit() {
+		for (let i = 0; i < FIELD_COUNT; i++) {
+			edit_time[i] = date_absolute_part(date, i);
+		}
+		edit_mode = 0;
+		edit_bit = 0;
+		edit_select_column = true;
+		edit_tick_id = setInterval(edit_tick, 250);
+	}
+
+	function end_edit(update_value) {
+		if (update_value) {
+			for (let i = 0; i < FIELD_COUNT; i++) {
+				if (!is_valid_value(i)) {
+					return false;
+				}
+			}
+		}
+		clearInterval(edit_tick_id);
+		clearInterval(tick_id);
+		edit_mode = -1;
+		if (update_value) {
+			date = new Date(edit_time[0], edit_time[1], edit_time[2], edit_time[3], edit_time[4], edit_time[5], 0);
+		}
+		start_tick();
+		return true;
+	}
+
+	function inc_edit_mode(update_value) {
+		if (edit_mode + 1 < FIELD_COUNT) {
+			edit_bit = 0;
+			edit_mode++;
+		} else {
+			end_edit(update_value);
+		}
+	}
+
+	function is_valid_value(mode) {
+		let max_value;
+		// When editing the date, the maximum depends on the month
+		if (mode == DAY) {
+			let month = edit_time[MONTH];
+			if (month == 2) {
+				let year = edit_time[YEAR];
+				if (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)) {
+					max_value = 29;
+				} else {
+					max_value = 28;
+				}
+			} else if ((month <= 7) === (month % 2 == 1)) {
+				max_value = 31;
+			} else {
+				max_value = 30;
+			}
+		} else {
+			max_value = MAX_EDIT_VALUE[mode];
+		}
+		return edit_time[mode] >= MIN_EDIT_VALUE[mode] && edit_time[mode] <= max_value;
+	}
+
+	function apply_bit(bit_value) {
+		edit_select_column = false;
+		var new_value = edit_time[edit_mode];
+		if (bit_value) {
+			new_value |= 1 << edit_bit;
+		} else {
+			new_value &= ~(1 << edit_bit);
+		}
+		edit_time[edit_mode] = new_value;
+		if (edit_bit < MAX_EDIT_BITS[edit_mode] - 1) {
+			edit_bit++;
+		} else if (is_valid_value(edit_mode)) {
+			inc_edit_mode(true);
+		}
+		write_edit_output();
+	}
+
+	function btn_normal_click(e, is_long_press) {
 		switch (e) {
 		case "menu":
+			start_edit();
 			break;
 		case "neg":
 			show_date = !show_date;
@@ -150,6 +301,38 @@ button {
 		}
 	}
 
+	function btn_edit(val, is_long_press) {
+		if (is_long_press) {
+			end_edit(val);
+		} else {
+			apply_bit(val);
+		}
+	}
+
+	function btn_edit_click(e, is_long_press) {
+		switch (e) {
+		case "menu":
+			if (edit_select_column || is_long_press) {
+				inc_edit_mode(false);
+			} else {
+				if (edit_bit > 0) {
+					edit_bit--;
+				} else if (edit_mode > 0) {
+					edit_mode--;
+					edit_bit = MAX_EDIT_BITS[edit_mode] - 1;
+				}
+				write_edit_output();
+			}
+			break;
+		case "neg":
+			btn_edit(false, is_long_press);
+			break;
+		case "pos":
+			btn_edit(true, is_long_press);
+			break;
+		}
+	}
+
 	function btn_start_click(b) {
 		clearTimeout(btn_click_timer);
 		btn_click_timer = setTimeout(function() { btn_end_click(b, true); }, 1000);
@@ -160,7 +343,11 @@ button {
 		clearTimeout(btn_click_timer);
 		if (!btn_handled) {
 			btn_handled = true;
-			btn_click(b, is_long_press);
+			if (edit_mode < 0) {
+				btn_normal_click(b, is_long_press);
+			} else {
+				btn_edit_click(b, is_long_press);
+			}
 		}
 	}
 </script>
@@ -182,5 +369,10 @@ button {
 <p>The left (blue) column is either hour or year, the middle (green) column is either minute or month and the right (red) column is either second or day.</p>
 <p>If it displays the date it'll flash in the top right corner and otherwise in the top left. By using the "0" it'll switch between date and time.</p>
 <p>The "1" button enables a "human readable" output. It'll show each "column" as two digits, the tens digit will have a "yellow" dot in the top row center. The order and color will be the same as for the binary output.</p>
+<h2>Change the time</h2>
+<p>Pressing "M" will change the time, going through the year, month, day, hour, minute and second column by column. Long pressing "M" or if no column has been changed just pressing "M" will skip the current column. After a digit is entered pressing "M" will actually go one pixel back. It'll discard the changes when the last column has been skipped.</p>
+<p>The flashing column with the static pixel is the currently edited column. The time is edited bit by bit, by entering either a "0" for that bit or a "1". The static pixel is the bit actually edited. After each button press it'll progress to the next higher bit or the next column. If it is doing neither it means that the current time is invalid. If the last bit was edited and it was valid, it'll apply the changes.</p>
+<p>Long pressing "0" or "1" will end editing the current time and either it discards the change ("0") or applies ("1") it.</p>
+<p>If the background of a column flashes it means that this column is in the current condition invalid, and as long as this is happening, it won't allow applying the changes although discarding is still possible.</p>
 </body>
 </html>
