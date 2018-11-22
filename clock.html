@@ -102,13 +102,18 @@ button {
 	}
 	
 	function btn_click(e) {
-		if (e == "menu") {
+		switch (e) {
+		case "menu":
 			show_number = 11;
-		} else {
+			break;
+		case "neg":
 			show_date = !show_date;
 			if (show_number >= 0) {
 				show_number = -1;
 			}
+			break;
+		case "pos":
+			break;
 		}
 	}
 </script>
