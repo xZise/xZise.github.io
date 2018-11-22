@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+td {
+	width: 80px;
+	height: 80px;
+}
+
+#grid {
+	table-layout: fixed;
+	float:left;
+}
+
+button {
+	display: block;
+	width: 30px;
+	margin: 5px;
+}
+</style>
+<script>
+	var numbers = [	[0b01110, 0b10001, 0b01110],
+					[0b01000, 0b11111, 0b00000],
+					[0b01001, 0b10011, 0b01101],
+					[0b10001, 0b10101, 0b01010],
+					[0b11100, 0b00100, 0b01111],
+					[0b11101, 0b10101, 0b10010],
+					[0b01110, 0b10101, 0b00010],
+					[0b10000, 0b10111, 0b11000],
+					[0b01110, 0b10101, 0b01110],
+					[0b01000, 0b10101, 0b01110]]
+
+	var date;
+	var tick_id;
+	var show_date = false;
+	var show_number = -1;
+	var columns = [[], [], []];
+	var column_color = ["blue", "green", "red"];
+	
+	function write_column(col_num, value, color) {
+		for (let row = 0; row < 6; row++) {
+			columns[col_num][row].bgColor = value & 0x1 ? color : "unset";
+			value >>= 1;
+		}
+	}
+
+	function write_number(number, color) {
+		for (let col = 0; col < 3; col++) {
+			write_column(col, numbers[number][col], color);
+		}
+	}
+	
+	function date_part(date, part) {
+		switch (part) {
+		case 0:
+			return show_date ? ((date.getFullYear() - 2000) % 64) : date.getHours();
+		case 1:
+			return show_date ? date.getMonth() + 1 : date.getMinutes();
+		case 2:
+			return show_date ? date.getDate() : date.getSeconds();
+		}
+	}
+
+	function tick() {
+		let d = new Date();
+		if (show_number >= 0) {
+			if (show_number % 2) {
+				let digit = Math.floor(show_number / 2);
+				let part = 2 - Math.floor(digit / 2);
+				let number = date_part(d, part);
+				let color = column_color[part];
+				if (digit % 2) {
+					number = Math.floor(number / 10);
+				} else {
+					number %= 10;
+				}
+				write_number(number, color);
+				columns[1][5].bgColor = digit % 2 ? "yellow" : "unset";
+			}
+			show_number -= 1;
+		} else {
+			for (let i = 0; i < 3; i++) {
+				write_column(i, date_part(d, i), column_color[i]);
+			}
+		}
+
+		columns[show_date ? 2 : 0][5].bgColor = "yellow";
+		setTimeout(function() { columns[show_date ? 2 : 0][5].bgColor = "unset"; }, 250);
+	}
+
+	function init_table() {
+		var cells = document.getElementById("grid").getElementsByTagName("td");
+		for (let i = 0; i < 18; i++) {
+			columns[i % 3].unshift(cells[i]);
+		}
+
+		tick();
+		date = new Date();
+		tick_id = setInterval(tick, 1000);
+	}
+	
+	function btn_click(e) {
+		if (e == "menu") {
+			show_number = 11;
+		} else {
+			show_date = !show_date;
+			if (show_number >= 0) {
+				show_number = -1;
+			}
+		}
+	}
+</script>
+</head>
+<body onload="init_table()" style="background: black;">
+<table id="grid">
+<tr><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td></tr>
+<tr><td></td><td></td><td></td></tr>
+</table>
+<button name="menu" onclick="btn_click(this.name)">M</button>
+<button name="pos" onclick="btn_click(this.name)">0</button>
+<button name="neg" onclick="btn_click(this.name)">1</button>
+</body>
+</html>
