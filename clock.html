@@ -110,12 +110,6 @@ button {
 	function btn_click(e) {
 		switch (e) {
 		case "menu":
-			if (show_number < 0) {
-				show_number = 5;
-			} else {
-				show_number = -1;
-				write_output();
-			}
 			break;
 		case "neg":
 			show_date = !show_date;
@@ -125,6 +119,12 @@ button {
 			write_output();
 			break;
 		case "pos":
+			if (show_number < 0) {
+				show_number = 5;
+			} else {
+				show_number = -1;
+				write_output();
+			}
 			break;
 		}
 	}
@@ -146,6 +146,6 @@ button {
 <p>This is a demo for a binary clock I want to build.</p>
 <p>The left (blue) column is either hour or year, the middle (green) column is either minute or month and the right (red) column is either second or day.</p>
 <p>If it displays the date it'll flash in the top right corner and otherwise in the top left. By using the "0" it'll switch between date and time.</p>
-<p>The "M" button enables a "human readable" output. It'll show each "column" as two digits, the tens digit will have a "yellow" dot in the top row center. The order and color will be the same as for the binary output.</p>
+<p>The "1" button enables a "human readable" output. It'll show each "column" as two digits, the tens digit will have a "yellow" dot in the top row center. The order and color will be the same as for the binary output.</p>
 </body>
 </html>
