@@ -65,7 +65,7 @@ button {
 	}
 
 	function tick() {
-		date = new Date();
+		date.setSeconds(date.getSeconds() + 1);
 		show_blink = true;
 		write_output();
 		columns[show_date ? 2 : 0][5].bgColor = "yellow";
@@ -107,8 +107,8 @@ button {
 			columns[i % 3].unshift(cells[i]);
 		}
 
-		tick();
 		date = new Date();
+		tick();
 		tick_id = setInterval(tick, 1000);
 	}
 	
