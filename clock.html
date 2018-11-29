@@ -38,6 +38,11 @@ button {
 	var columns = [[], [], []];
 	var column_color = ["blue", "green", "red"];
 	var show_blink = false;
+
+	// The setTimeout id when a button was clicked
+	var btn_click_timer;
+	// This is set to false on "start" of the click, and set to true as soon as the click was handled.
+	var btn_handled = false;
 	
 	function write_column(col_num, value, color) {
 		let end = (col_num == (show_date ? 2 : 0)) ? 5 : 6;
@@ -111,8 +116,8 @@ button {
 		tick();
 		tick_id = setInterval(tick, 1000);
 	}
-	
-	function btn_click(e) {
+
+	function btn_click(e, is_long_press) {
 		switch (e) {
 		case "menu":
 			break;
@@ -133,6 +138,20 @@ button {
 			break;
 		}
 	}
+
+	function btn_start_click(b) {
+		clearTimeout(btn_click_timer);
+		btn_click_timer = setTimeout(function() { btn_end_click(b, true); }, 1000);
+		btn_handled = false;
+	}
+
+	function btn_end_click(b, is_long_press) {
+		clearTimeout(btn_click_timer);
+		if (!btn_handled) {
+			btn_handled = true;
+			btn_click(b, is_long_press);
+		}
+	}
 </script>
 </head>
 <body onload="init_table()" style="background: black;">
@@ -144,9 +163,9 @@ button {
 <tr><td></td><td></td><td></td></tr>
 <tr><td></td><td></td><td></td></tr>
 </table>
-<button name="menu" onclick="btn_click(this.name)">M</button>
-<button name="neg" onclick="btn_click(this.name)">0</button>
-<button name="pos" onclick="btn_click(this.name)">1</button>
+<button name="menu" onmousedown="btn_start_click(this.name)" onmouseup="btn_end_click(this.name, false)">M</button>
+<button name="neg" onmousedown="btn_start_click(this.name)"  onmouseup="btn_end_click(this.name, false)">0</button>
+<button name="pos" onmousedown="btn_start_click(this.name)"  onmouseup="btn_end_click(this.name, false)">1</button>
 <div style="clear: left; color: white; font-family: sans-serif;">
 <p>This is a demo for a binary clock I want to build.</p>
 <p>The left (blue) column is either hour or year, the middle (green) column is either minute or month and the right (red) column is either second or day.</p>
