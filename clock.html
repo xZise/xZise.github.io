@@ -30,6 +30,8 @@ button {
 }
 </style>
 <script>
+	const COLUMN_COLORS = ["blue", "green", "red"];
+
 	var numbers = [	[0b01110, 0b10001, 0b01110],
 					[0b01000, 0b11111, 0b00000],
 					[0b01001, 0b10011, 0b01101],
@@ -46,7 +48,6 @@ button {
 	var show_date = false;
 	var show_number = -1;
 	var columns = [[], [], []];
-	var column_color = ["blue", "green", "red"];
 	var show_blink = false;
 
 	// The setTimeout id when a button was clicked
@@ -91,7 +92,7 @@ button {
 		if (show_number >= 0) {
 			let part = 2 - Math.floor(show_number / 2);
 			let number = date_part(date, part);
-			let color = column_color[part];
+			let color = COLUMN_COLORS[part];
 			if (show_number % 2) {
 				number = Math.floor(number / 10);
 			} else {
@@ -108,7 +109,7 @@ button {
 				i++;
 			}
 			for (; i < 3; i++) {
-				write_column(i, date_part(date, i), column_color[i]);
+				write_column(i, date_part(date, i), COLUMN_COLORS[i]);
 			}
 		}
 		if (show_blink) {
