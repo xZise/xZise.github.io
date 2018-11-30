@@ -233,6 +233,8 @@ button {
 		if (update_value) {
 			// Year offset which needs to be applied, might need some way for 2064+
 			edit_time[0] += YEAR_OFFSET;
+			// Month is 0..11 for the object, but 1..12 for the display
+			edit_time[1] -= 1;
 			date = new Date(...edit_time, 0);
 		}
 		start_tick();
