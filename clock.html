@@ -232,7 +232,7 @@ button {
 		if (update_value) {
 			// Year offset which needs to be applied, might need some way for 2064+
 			edit_time[0] += YEAR_OFFSET;
-			date = new Date(edit_time[0], edit_time[1], edit_time[2], edit_time[3], edit_time[4], edit_time[5], 0);
+			date = new Date(...edit_time, 0);
 		}
 		start_tick();
 		return true;
