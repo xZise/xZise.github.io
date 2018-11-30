@@ -45,6 +45,8 @@ button {
 	// it can actually be a const. This is more for the developer to see it doesn't change
 	const MAX_EDIT_BITS = [];
 
+	const YEAR_OFFSET = 2000;
+
 	var numbers = [	[0b01110, 0b10001, 0b01110],
 					[0b01000, 0b11111, 0b00000],
 					[0b01001, 0b10011, 0b01101],
@@ -98,7 +100,7 @@ button {
 	function date_absolute_part(date, part) {
 		switch (part) {
 		case YEAR:
-			return (date.getFullYear() - 2000) % 64;
+			return (date.getFullYear() - YEAR_OFFSET) % 64;
 		case MONTH:
 			return date.getMonth() + 1;
 		case DAY:
@@ -228,6 +230,8 @@ button {
 		clearInterval(tick_id);
 		edit_mode = -1;
 		if (update_value) {
+			// Year offset which needs to be applied, might need some way for 2064+
+			edit_time[0] += YEAR_OFFSET;
 			date = new Date(edit_time[0], edit_time[1], edit_time[2], edit_time[3], edit_time[4], edit_time[5], 0);
 		}
 		start_tick();
@@ -249,7 +253,7 @@ button {
 		if (mode == DAY) {
 			let month = edit_time[MONTH];
 			if (month == 2) {
-				let year = edit_time[YEAR];
+				let year = edit_time[YEAR] + YEAR_OFFSET;
 				if (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0)) {
 					max_value = 29;
 				} else {
