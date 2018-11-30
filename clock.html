@@ -69,6 +69,7 @@ button {
 	var edit_tick_cnt = true;
 	var edit_time = [];
 	var edit_select_column = true;
+	var edit_value_valid = [];
 
 	// The setTimeout id when a button was clicked
 	var btn_click_timer;
@@ -197,7 +198,7 @@ button {
 				}
 				value |= (1 << edit_bit);
 			}
-			if (edit_tick_cnt && !is_valid_value(column)) {
+			if (edit_tick_cnt && !edit_value_valid[column]) {
 				bg_color = undefined;
 				if (i == yellow_column) {
 					yellow_color = "unset";
@@ -211,6 +212,7 @@ button {
 	function start_edit() {
 		for (let i = 0; i < FIELD_COUNT; i++) {
 			edit_time[i] = date_absolute_part(date, i);
+			edit_value_valid[i] = true;  // Assume... yeah I know ... the values are correct
 		}
 		edit_mode = 0;
 		edit_bit = 0;
@@ -219,12 +221,8 @@ button {
 	}
 
 	function end_edit(update_value) {
-		if (update_value) {
-			for (let i = 0; i < FIELD_COUNT; i++) {
-				if (!is_valid_value(i)) {
-					return false;
-				}
-			}
+		if (update_value && !edit_value_valid.every(value => value)) {
+			return false;
 		}
 		clearInterval(edit_tick_id);
 		clearInterval(tick_id);
@@ -277,9 +275,10 @@ button {
 			new_value &= ~(1 << edit_bit);
 		}
 		edit_time[edit_mode] = new_value;
+		edit_value_valid[edit_mode] = is_valid_value(edit_mode);
 		if (edit_bit < MAX_EDIT_BITS[edit_mode] - 1) {
 			edit_bit++;
-		} else if (is_valid_value(edit_mode)) {
+		} else if (edit_value_valid[edit_mode]) {
 			inc_edit_mode(true);
 		}
 		write_edit_output();
