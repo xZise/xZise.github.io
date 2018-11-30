@@ -184,6 +184,9 @@ button {
 	}
 
 	function write_edit_output() {
+		var yellow_column = edit_mode < 3 ? 2 : 0;
+		var yellow_color = "yellow";
+
 		for (let i = 0; i < 3; i++) {
 			let column = Math.floor(edit_mode / 3) * 3 + i;
 			let value = edit_time[column];
@@ -196,9 +199,13 @@ button {
 			}
 			if (edit_tick_cnt && !is_valid_value(column)) {
 				bg_color = undefined;
+				if (i == yellow_column) {
+					yellow_color = "unset";
+				}
 			}
 			write_column(i, value, COLUMN_COLORS[i], 6, bg_color);
 		}
+		columns[yellow_column][5].bgColor = yellow_color;
 	}
 
 	function start_edit() {
