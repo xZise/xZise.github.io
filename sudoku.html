@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+td.solution, td.clue {
+	border-bottom-style: double;
+	border-right-style: double;
+	border-bottom-width: 5px;
+	border-right-width: 5px;
+	width: 63px;
+	height: 63px;
+	font-size: 3em;
+	font-weight: bold;
+}
+
+td.clue {
+	color: blue;
+}
+
+td.invalid {
+	color: red;
+}
+
+table tr td {
+	border: 1px solid black;
+	width: 20px;
+	height: 20px;
+	padding: 0px;
+	text-align: center;
+}
+
+table.small tr td {
+	width: 5px;
+	height: 5px;
+	font-size: 5px;
+}
+
+table.small tr td.solution, table.small tr td.clue {
+	width: 18px;
+	height: 18px;
+	font-size: 15px;
+}
+
+td:nth-child(3n+0) {
+	border-right-style: double;
+	border-right-width: 5px;
+}
+tr:nth-child(3n+1) td {
+	border-bottom-style: double;
+	border-bottom-width: 5px;
+}
+
+td:nth-child(9n+0), td.solution:nth-child(9n+7), td.clue:nth-child(9n+7) {
+	border-right-style: solid;
+}
+
+tr:nth-child(9n+1) td, tr:nth-child(9n+8) td.solution, tr:nth-child(9n+8) td.clue {
+	border-bottom-style: solid;
+}
+td:nth-child(1) {
+	border-left-width: 5px;
+}
+tr:nth-child(1) td {
+	border-top-style: none;
+	border-left-style: none;
+	border-right-style: none;
+	height: 0px;
+}
+/*tr:nth-child(1) td {
+	border-top-width: 5px;
+}*/
+
+#grid {
+	border-collapse: collapse;
+	table-layout: fixed;
+}
+</style>
+<script>
+"use strict";
+
+var sudoku_cells = [];
+var entering_clues = true;
+var small_size = false;
+
+var changes = [];
+var change_position = -1;
+var undo_button;
+var redo_button;
+
+var save_button;
+var load_button;
+var load_autosave_button;
+var export_text_area;
+
+class Change {
+
+	constructor(cell, number) {
+		this.cell = cell;
+		this.number = number;
+	}
+	
+	undo() {
+		this._change(this.is_set);
+	}
+	
+	redo() {
+		this._change(!this.is_set);
+	}
+}
+
+class Change_Solution extends Change {
+
+	constructor(cell, number) {
+		super(cell, number);
+		this.is_set = this.cell.solution;
+		// If the cell is a solution (so this is now removing the solution)
+		// it uses the number of the clicked cell, which is always 1.
+		// On "undoing" it, it'll add the solution using that number.
+		if (this.is_set) {
+			this.number = this.cell.value;
+		}
+	}
+	
+	_change(to_set) {
+		if (to_set) {
+			this.cell.value = this.number;
+		} else {
+			this.cell.value = -1;
+			this.cell.mark_number_valid(0);
+		}
+		for (let c of sudoku_cells) {
+			if (c.solution) {
+				if (!c.clue) {
+					mark_invalid(c.table_cell, !c.solution_valid);
+				}
+			} else {
+				c.mark_number_valid(this.number);
+			}
+		}
+	}
+}
+
+class Switch_Candidate extends Change {
+
+	constructor(cell, number) {
+		super(cell, number);
+		this.is_set = cell.possibilities[number];
+	}
+	
+	_change(to_set) {
+		this.cell.update_candidate(this.number, to_set);
+		//this.cell.possibilities[this.number] = to_set;
+		//this.cell.table_cells[this.number].innerText = to_set ? this.number + 1 : "";
+	}
+
+}
+
+class Cell {
+	constructor(number) {
+		this.row = Math.floor(number / 9);
+		this.column = number % 9;
+		this.possibilities = [true, true, true, true, true, true, true, true, true];
+		this._value = -1;
+		this._clue = false;
+		this.table_cells = [];
+	}
+	
+	get table_cell() {
+		return this.table_cells[0];
+	}
+	
+	get other_cells() {
+		return this.table_cells.slice(1);
+	}
+	
+	get solution() {
+		return this.value >= 0;
+	}
+	
+	get value() {
+		return this._value;
+	}
+	
+	set value(number) {
+		if (number < 0) {
+			this._value = -1;
+			var span = "1";
+			var display = "";
+			var text = this.possibilities[0] ? (small_size ? "x" : "1") : "";
+		} else {
+			this._value = number;
+			var span = "3";
+			var display = "none";
+			var text = this.value + 1;
+		}
+		this.table_cell.innerText = text;
+		this.table_cell.rowSpan = span;
+		this.table_cell.colSpan = span;
+		for (let c of this.other_cells) {
+			c.style.display = display;
+		}
+		modify_class(this.table_cell, this.solution, this.css_class);
+	}
+	
+	get css_class() {
+		return this.clue ? "clue" : "solution";
+	}
+	
+	get clue() {
+		return this._clue;
+	}
+	
+	set clue(value) {
+		var old_class = this.css_class;
+		this._clue = value;
+		if (this.solution) {
+			modify_class(this.table_cell, false, old_class);
+			modify_class(this.table_cell, true, this.css_class);
+		}
+	}
+	
+	update_candidate(number, is_candidate) {
+		this.possibilities[number] = is_candidate;
+		this.table_cells[number].innerText = is_candidate ? (small_size ? "x" : number + 1) : "";
+	}
+	
+	same_range(other_cell) {
+		return other_cell.row == this.row || other_cell.column == this.column || (Math.floor(other_cell.row / 3) == Math.floor(this.row / 3) && Math.floor(other_cell.column / 3) == Math.floor(this.column / 3));
+	}
+	
+	number_valid(number) {
+		for (let other_cell of sudoku_cells) {
+			if (other_cell != this && this.same_range(other_cell) && other_cell.value == number) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Returns whether the solution selected is valid. False if this cell has none yet.
+	 */
+	get solution_valid() {
+		return this.solution && this.number_valid(this.value);
+	}
+
+	mark_number_valid(number) {
+		mark_invalid(this.table_cells[number], !this.number_valid(number));
+	}
+
+	validate_possibilities() {
+		for (let i = 0; i < 9; i++) {
+			if (this.possibilities[i]) {
+				this.number_valid(i);
+			}
+		}
+	}
+}
+
+function switch_size(set_to_small) {
+	small_size = set_to_small;
+	modify_class(document.getElementById("grid"), small_size, "small");
+	for (let sudoku_cell of sudoku_cells) {
+		for (let i = 0; i < sudoku_cell.table_cells.length; i++) {
+			if (sudoku_cell.possibilities[i]) {
+				if (small_size) {
+					sudoku_cell.table_cells[i].innerText = "x";
+				} else {
+					sudoku_cell.table_cells[i].innerText = i + 1;
+				}
+			}
+		}
+	}
+}
+
+function mouse_over(sudoku_cell, number) {
+	for (let other_cell of sudoku_cells) {
+		if (other_cell.same_range(sudoku_cell)) {
+			var bgColor = "lightCyan";
+		} else {
+			var bgColor = "";
+		}
+		for (let c of other_cell.table_cells) {
+			c.bgColor = bgColor;
+		}
+	}
+
+	sudoku_cell.table_cells[number].bgColor = "skyBlue";
+}
+
+function mouse_out(sudoku_cell, number) {
+	for (let other_cell of sudoku_cells) {
+		for (let c of other_cell.table_cells) {
+			c.bgColor = "";
+		}
+	}
+
+	sudoku_cell.table_cells[number].bgColor = "";
+}
+
+function add_change(change) {
+	change.redo();
+	change_position++;
+	changes.splice(change_position);
+	// "change_position" should be "changes.length - 1" here!
+	changes.push(change);
+	undo_button.disabled = false;
+	redo_button.disabled = true;
+	to_store(true);
+}
+
+function click_cell(sudoku_cell, number) {
+	if (entering_clues) {
+		add_change(new Change_Solution(sudoku_cell, number));
+	} else {
+		if (!sudoku_cell.solution) {
+			add_change(new Switch_Candidate(sudoku_cell, number));
+		}
+	}
+}
+
+function modify_class(dom, bool, css_class) {
+	if (bool) {
+		dom.classList.add(css_class);
+	} else {
+		dom.classList.remove(css_class);
+	}
+}
+
+function mark_invalid(table_cell, is_invalid) {
+	modify_class(table_cell, is_invalid, "invalid");
+}
+
+function double_click_cell(sudoku_cell, number) {
+	// While entering clues, double click should do nothing
+	if (entering_clues) {
+		return false;
+	}
+	if (sudoku_cell.clue) {
+		return false;
+	}
+	add_change(new Change_Solution(sudoku_cell, number));
+}
+
+function table_cell_event(func, sudoku_cell, number) {
+	return function(cell) {
+		func(sudoku_cell, number);
+	}
+}
+
+function start() {
+	for (let cell of sudoku_cells) {
+		if (cell.solution && !cell.solution_valid) {
+			alert("These clues don't work!");
+			return false;
+		}
+	}
+	var init_candidates;
+	switch (document.forms["init"]["candidates"].value) {
+	case "off":
+		init_candidates = 0;
+		break;
+	case "all":
+		init_candidates = 2;
+		break;
+	case "calculated":
+	default:
+		init_candidates = 1;
+		break;
+	}
+	// First update the solutions: Either convert in clues or remove them
+	for (let cell of sudoku_cells) {
+		if (cell.solution) {
+			if (entering_clues) {
+				cell.clue = true;
+			} else if (!cell.clue) {
+				cell.value = -1;
+			}
+		}
+	}
+	// Then update each candidate to show them as valid. This is done in a separate
+	// loop, in case a solution gets removed. It also updates the handlers.
+	for (let cell of sudoku_cells) {
+		if (!cell.solution) {
+			for (let i = 0; i < cell.table_cells.length; i++) {
+				let is_valid = cell.number_valid(i);
+				mark_invalid(cell.table_cells[i], !is_valid);
+				cell.update_candidate(i, !(init_candidates == 0 || (init_candidates == 1 && !is_valid)));
+			}
+		}
+	}
+	entering_clues = false;
+	reset_history();
+}
+
+function reset_history() {
+	change_position = -1;
+	changes = [];
+	check_history_buttons();
+}
+
+function init_table() {
+	var cells = document.getElementById("grid").getElementsByTagName("td");
+	for (let i = 0; i < 9 * 9; i++) {
+		let sudoku_cell = new Cell(i);
+		sudoku_cells[i] = sudoku_cell;
+		for (let j = 0; j < 9; j++) {
+			let cell = cells[27 + sudoku_cell.column * 3 + sudoku_cell.row * 27 * 3 + (j % 3) + (Math.floor(j / 3) * 27)];
+			sudoku_cell.table_cells.push(cell);
+
+			cell.onclick = table_cell_event(click_cell, sudoku_cell, j);cell.ondblclick = table_cell_event(double_click_cell, sudoku_cell, j);
+			cell.onmouseover = table_cell_event(mouse_over, sudoku_cell, j);
+			cell.onmouseout = table_cell_event(mouse_out, sudoku_cell, j);
+		}
+	}
+
+	undo_button = document.getElementById("undo");
+	redo_button = document.getElementById("redo");
+
+	save_button = document.getElementById("save");
+	load_button = document.getElementById("load");
+	load_autosave_button = document.getElementById("load_autosave");
+	export_text_area = document.getElementById("export_section");
+	
+	if (true) {
+		// TODO: Check if storage is available
+		save_button.disabled = false;
+	}
+	check_store_buttons();
+}
+
+function to_string() {
+	var result = "";
+	for (let i = 0; i < 9 * 9; i++) {
+		for (let candidate = 0; candidate < 9; candidate++) {
+			let is_candidate = sudoku_cells[i].possibilities[candidate];
+			let is_solution = sudoku_cells[i].value == candidate;
+			if ((is_candidate && !sudoku_cells[i].clue) || is_solution) {
+				result += candidate;
+				if (is_solution) {
+					result += sudoku_cells[i].clue ? "!" : (is_candidate ? "." : "?");
+				}
+			}
+		}
+		if (i % 9 == 8) {
+			result += "\n";
+		} else {
+			result += " ";
+		}
+	}
+	return result;
+}
+
+function to_json() {
+	var cells = [];
+	for (let cell of sudoku_cells) {
+		let cell_data = {};
+		cell_data["clue"] = cell.clue;
+		cell_data["value"] = cell.value;
+		cell_data["candidates"] = [];
+		if (!cell.clue) {
+			for (let i = 0; i < 9; i++) {
+				if (cell.possibilities[i]) {
+					cell_data["candidates"].push(i);
+				}
+			}
+		}
+		cells.push(cell_data);
+	}
+	return JSON.stringify({"cells": cells});
+}
+
+function from_json(json_string) {
+	var json_obj = JSON.parse(json_string);
+	from_object_list(json_obj["cells"])
+}
+
+function from_object_list(cells) {
+	var length = cells.length;
+	var side_length = Math.floor(Math.sqrt(length));
+	if (side_length * side_length != length) {
+		alert("Invalid cell length, must be a square number");
+		return false;
+	}
+	if (length != sudoku_cells.length) {
+		alert("Not implemented: Different sizes");
+		return false;
+	}
+	for (let i = 0; i < length; i++) {
+		let src_cell = cells[i];
+		let tgt_cell = sudoku_cells[i];
+		for (let j = 0; j < side_length; j++) {
+			tgt_cell.update_candidate(j, src_cell["candidates"].indexOf(j) >= 0);
+		}
+		tgt_cell.clue = src_cell.clue;
+		tgt_cell.value = src_cell.value;
+	}
+	entering_clues = false;
+	reset_history();
+}
+
+function from_string_oneline(line) {
+	var cells = []
+	for (let c of line) {
+		let value = parseInt(c);
+		if (isNaN(value)) {
+			value = -1;
+		} else {
+			value--;
+		}
+		cells.push({"candidates": [], "clue": true, "value": value});
+	}
+	from_object_list(cells);
+}
+
+function to_string_oneline(only_clues=true) {
+	// http://www.sudokuwiki.org or http://www.paulspages.co.uk/sudoku/
+	// -> one line with the solutions, empty -> "."
+	var result = "";
+	for (let cell of sudoku_cells) {
+		if (cell.solution && (!only_clues || cell.clue)) {
+			result += cell.value + 1;
+		} else {
+			result += ".";
+		}
+	}
+	return result;
+}
+
+function to_store(is_autosave) {
+	localStorage.setItem(is_autosave ? "autosave" : "save", to_json());
+	check_store_buttons();
+}
+
+function from_store(is_autosave) {
+	var name = is_autosave ? "autosave" : "save";
+	var save_data = localStorage.getItem(name);
+	if (save_data) {
+		from_json(save_data);
+	}
+}
+
+function import_string() {
+	var imported_string = export_text_area.value;
+	// 0, *, _, .
+	if (imported_string.charAt(0) == "{") {
+		// JSON
+		from_json(imported_string);
+	} else {
+		// Check if it is one line, otherwise assume it's a grid or something
+		if (!imported_string.match(/^\s[0-9*_.]+\s$/)) {
+			// Just get the numbers and "." (same as 0) and discard the rest
+			// This is now an array, but the function shouldn't care
+			imported_string = imported_string.match(/[0-9.]/g)
+		}
+		from_string_oneline(imported_string);
+	}
+}
+
+function export_string() {
+	var exported_string;
+	switch (document.forms["export"]["variant"].value) {
+	case "oneline":
+		exported_string = to_string_oneline();
+		break;
+	case "onelineall":
+		exported_string = to_string_oneline(false);
+		break;
+	default:
+	case "json":
+		exported_string = to_json();
+		break;
+	}
+	export_text_area.value = exported_string;
+}
+
+function check_size() {
+	switch_size(document.getElementById("small_size").checked);
+}
+
+function check_history_buttons() {
+	undo_button.disabled = change_position < 0;
+	redo_button.disabled = change_position >= changes.length - 1;
+}
+
+function check_store_buttons() {
+	load_button.disabled = !("save" in localStorage);
+	load_autosave_button.disabled = !("autosave" in localStorage);
+}
+
+function history_change(is_undo) {
+	let new_position = change_position + (is_undo ? -1 : +1);
+	if (is_undo && change_position >= 0) {
+		changes[change_position].undo();
+		change_position = new_position;
+	} else if (!is_undo && change_position < changes.length - 1) {
+		changes[new_position].redo();
+		change_position = new_position;
+	}
+	check_history_buttons();
+}
+</script>
+</head>
+<body onload="init_table()">
+<form name="init">
+	<input type="radio" id="no_candidate" name="candidates" value="off"><label for="no_candidate">No candidates</label>
+	<input type="radio" id="calc_candidate" name="candidates" value="calculated" checked="checked"><label for="calc_candidate">Calculate candidates</label>
+	<input type="radio" id="all_candidate" name="candidates" value="all"><label for="all_candidate">All candidates</label>
+	<button type="button" onclick="start()">Start</button>
+</form>
+<button type="button" id="undo" disabled="disabled" onclick="history_change(true)">&lt;&lt; Undo</button>
+<button type="button" id="redo" disabled="disabled" onclick="history_change(false)">&gt;&gt; Redo</button>
+<button type="button" id="save" disabled="disabled" onclick="to_store(false)">Save</button>
+<button type="button" id="load" disabled="disabled" onclick="from_store(false)">Load</button>
+<button type="button" id="load_autosave" disabled="disabled" onclick="from_store(true)">Load autosave</button>
+<input type="checkbox" id="small_size" onclick="check_size()"><label for="small_size">Small size</label>
+<table id="grid">
+<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td></tr>
+<tr><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td></tr>
+<tr><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td></tr>
+<tr><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td></tr>
+<tr><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td></tr>
+<tr><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td></tr>
+<tr><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td></tr>
+<tr><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td></tr>
+<tr><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td></tr>
+<tr><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td></tr>
+<tr><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td></tr>
+<tr><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td></tr>
+<tr><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td></tr>
+<tr><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td></tr>
+<tr><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td></tr>
+<tr><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td></tr>
+<tr><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td><td>4</td><td>5</td><td>6</td></tr>
+<tr><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td></tr>
+</table>
+<form name="export">
+	<input type="radio" name="variant" value="json" checked="checked">JSON</input>
+	<input type="radio" name="variant" value="oneline">One line (clues only)</input>
+	<input type="radio" name="variant" value="onelineall">One line (clues and solutions)</input>
+	<button type="button" onclick="export_string()">Export</button>
+	<button type="button" onclick="import_string()">Import</button>
+</form>
+<textarea id="export_section"></textarea>
+</body>
+</html>
