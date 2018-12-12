@@ -82,6 +82,7 @@ tr:nth-child(1) td {
 var sudoku_cells = [];
 var entering_clues = true;
 var small_size = false;
+var show_invalid_candidates;
 
 var changes = [];
 var change_position = -1;
@@ -92,6 +93,7 @@ var save_button;
 var load_button;
 var load_autosave_button;
 var export_text_area;
+var highlight_invalid_candidates_checkbox;
 
 class Change {
 
@@ -246,7 +248,13 @@ class Cell {
 	}
 
 	mark_number_valid(number) {
-		mark_invalid(this.table_cells[number], !this.number_valid(number));
+		var is_invalid;
+		if (this.solution || (!show_invalid_candidates && !entering_clues)) {
+			is_invalid = false;
+		} else {
+			is_invalid = !this.number_valid(number);
+		}
+		mark_invalid(this.table_cells[number], is_invalid);
 	}
 
 	validate_possibilities() {
@@ -384,8 +392,11 @@ function start() {
 	for (let cell of sudoku_cells) {
 		if (!cell.solution) {
 			for (let i = 0; i < cell.table_cells.length; i++) {
-				let is_valid = cell.number_valid(i);
-				mark_invalid(cell.table_cells[i], !is_valid);
+				let is_valid = false;
+				if (show_invalid_candidates || init_candidates == 1) {
+					is_valid = cell.number_valid(i);
+				}
+				mark_invalid(cell.table_cells[i], show_invalid_candidates && !is_valid);
 				cell.update_candidate(i, !(init_candidates == 0 || (init_candidates == 1 && !is_valid)));
 			}
 		}
@@ -421,6 +432,10 @@ function init_table() {
 	save_button = document.getElementById("save");
 	load_button = document.getElementById("load");
 	load_autosave_button = document.getElementById("load_autosave");
+
+	highlight_invalid_candidates_checkbox = document.getElementById("invalid_candidates");
+	show_invalid_candidates = highlight_invalid_candidates_checkbox.checked;
+
 	export_text_area = document.getElementById("export_section");
 	
 	if (true) {
@@ -600,6 +615,15 @@ function history_change(is_undo) {
 	}
 	check_history_buttons();
 }
+
+function update_invalid_candidates() {
+	show_invalid_candidates = highlight_invalid_candidates_checkbox.checked;
+	for (let cell of sudoku_cells) {
+		for (let i = 0; i < 9; i++) {
+			cell.mark_number_valid(i);
+		}
+	}
+}
 </script>
 </head>
 <body onload="init_table()">
@@ -615,6 +639,7 @@ function history_change(is_undo) {
 <button type="button" id="load" disabled="disabled" onclick="from_store(false)">Load</button>
 <button type="button" id="load_autosave" disabled="disabled" onclick="from_store(true)">Load autosave</button>
 <input type="checkbox" id="small_size" onclick="check_size()"><label for="small_size">Small size</label>
+<input type="checkbox" id="invalid_candidates" onclick="update_invalid_candidates()"><label for="invalid_candidates">Highlight invalid candidates</label>
 <table id="grid">
 <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td><td>1</td><td>2</td><td>3</td></tr>
