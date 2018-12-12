@@ -646,9 +646,9 @@ function history_change(is_undo) {
 <tr><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td><td>7</td><td>8</td><td>9</td></tr>
 </table>
 <form name="export">
-	<input type="radio" name="variant" value="json" checked="checked">JSON</input>
-	<input type="radio" name="variant" value="oneline">One line (clues only)</input>
-	<input type="radio" name="variant" value="onelineall">One line (clues and solutions)</input>
+	<input type="radio" name="variant" value="json" checked="checked" id="varian_json"><label for="varian_json">JSON</label>
+	<input type="radio" name="variant" value="oneline" id="variant_online"><label for="variant_online">One line (clues only)</label>
+	<input type="radio" name="variant" value="onelineall" id="variant_onelineall"><label for="variant_onelineall">One line (clues and solutions)</label>
 	<button type="button" onclick="export_string()">Export</button>
 	<button type="button" onclick="import_string()">Import</button>
 </form>
