@@ -3,16 +3,19 @@
 <head>
 <meta charset="utf-8"/>
 <style>
+:root {
+	color-scheme: light dark;
+	font-family: sans-serif;
+}
+
 td {
 	width: 80px;
 	height: 80px;
 }
 
 td:nth-child(1) {
-	color: white;
 	text-align: right;
 	font-weight: bold;
-	font-family: sans-serif;
 	font-size: 3em;
 	padding-right: 8px;
 	width: unset;
@@ -365,7 +368,7 @@ button {
 	}
 </script>
 </head>
-<body onload="init_table()" style="background: black;">
+<body onload="init_table()">
 <table id="grid">
 <tr><td>32</td><td></td><td></td><td></td></tr>
 <tr><td>16</td><td></td><td></td><td></td></tr>
@@ -377,7 +380,7 @@ button {
 <button name="menu" onmousedown="btn_start_click(this.name)" onmouseup="btn_end_click(this.name, false)">M</button>
 <button name="neg" onmousedown="btn_start_click(this.name)"  onmouseup="btn_end_click(this.name, false)">0</button>
 <button name="pos" onmousedown="btn_start_click(this.name)"  onmouseup="btn_end_click(this.name, false)">1</button>
-<div style="clear: left; color: white; font-family: sans-serif;">
+<div style="clear: left;">
 <p>This is a demo for a binary clock I want to build.</p>
 <p>The left (blue) column is either hour or year, the middle (green) column is either minute or month and the right (red) column is either second or day.</p>
 <p>If it displays the date it'll flash in the top right corner and otherwise in the top left. By using the "0" it'll switch between date and time.</p>
