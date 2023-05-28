@@ -126,14 +126,14 @@ button {
 		if (edit_mode < 0) {
 			show_blink = true;
 			write_output();
-			columns[show_date ? 2 : 0][5].bgColor = "yellow";
-			setTimeout(function() { show_blink = false; columns[show_date ? 2 : 0][5].bgColor = "unset"; }, 250);
+			blink_cell().bgColor = "yellow";
+			setTimeout(function() { show_blink = false; blink_cell().bgColor = "unset"; }, 250);
 		}
 	}
 
 	function write_output() {
 		if (show_number >= 0) {
-			let part = 2 - Math.floor(show_number / 2);
+			const part = 2 - Math.floor(show_number / 2);
 			let number = date_part(date, part);
 			let color = COLUMN_COLORS[part];
 			if (show_number % 2) {
@@ -157,8 +157,12 @@ button {
 			}
 		}
 		if (show_blink) {
-			columns[show_date ? 2 : 0][5].bgColor = "yellow";
+			blink_cell().bgColor = "yellow";
 		}
+	}
+
+	function blink_cell() {
+		return columns[show_date ? 2 : 0][5];
 	}
 
 	function init_table() {
